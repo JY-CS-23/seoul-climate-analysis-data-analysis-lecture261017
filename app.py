@@ -53,13 +53,55 @@ yearly = build_yearly(df)
 min_year, max_year = int(yearly["연도"].min()), int(yearly["연도"].max())
 
 # ---------------------------------------------------------------- 사이드바
+# 슬라이더와 숫자 입력칸을 session_state로 서로 동기화
+if "year_range" not in st.session_state:
+    st.session_state["year_range"] = (min_year, max_year)
+    st.session_state["start_year"] = min_year
+    st.session_state["end_year"] = max_year
+
+
+def _sync_from_slider():
+    s, e = st.session_state["year_range"]
+    st.session_state["start_year"] = s
+    st.session_state["end_year"] = e
+
+
+def _sync_from_inputs():
+    s = st.session_state["start_year"]
+    e = st.session_state["end_year"]
+    if s > e:  # 시작 > 끝이면 서로 맞바꿈
+        s, e = e, s
+    st.session_state["start_year"] = s
+    st.session_state["end_year"] = e
+    st.session_state["year_range"] = (s, e)
+
+
 st.sidebar.header("설정")
-year_range = st.sidebar.slider(
+st.sidebar.slider(
     "연도 범위",
     min_value=min_year,
     max_value=max_year,
-    value=(min_year, max_year),
+    key="year_range",
+    on_change=_sync_from_slider,
 )
+col_start, col_end = st.sidebar.columns(2)
+col_start.number_input(
+    "시작 연도",
+    min_value=min_year,
+    max_value=max_year,
+    step=1,
+    key="start_year",
+    on_change=_sync_from_inputs,
+)
+col_end.number_input(
+    "끝 연도",
+    min_value=min_year,
+    max_value=max_year,
+    step=1,
+    key="end_year",
+    on_change=_sync_from_inputs,
+)
+year_range = st.session_state["year_range"]
 include_missing = st.sidebar.checkbox(
     "결측 구간(1950~1953) 통계에 포함", value=False
 )
