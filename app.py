@@ -76,6 +76,16 @@ def _sync_from_inputs():
     st.session_state["year_range"] = (s, e)
 
 
+st.session_state.setdefault("first_click", None)  # 그래프에서 첫 번째로 클릭한 연도
+st.session_state.setdefault("chart_ver", 0)  # 그래프 선택 상태를 초기화하기 위한 key 번호
+
+# 그래프 클릭으로 정해진 구간을 위젯이 만들어지기 전에 반영
+if "pending_range" in st.session_state:
+    _s, _e = st.session_state.pop("pending_range")
+    st.session_state["year_range"] = (_s, _e)
+    st.session_state["start_year"] = _s
+    st.session_state["end_year"] = _e
+
 st.sidebar.header("설정")
 st.sidebar.slider(
     "연도 범위",
@@ -160,7 +170,46 @@ fig.update_layout(
     height=520,
     margin=dict(l=20, r=20, t=40, b=20),
 )
-st.plotly_chart(fig, use_container_width=True)
+
+# 클릭한 첫 번째 연도를 점선으로 표시
+first = st.session_state["first_click"]
+if first is not None and start <= first <= end:
+    fig.add_vline(x=first, line_dash="dash", line_color="gray")
+
+event = st.plotly_chart(
+    fig,
+    use_container_width=True,
+    on_select="rerun",
+    selection_mode="points",
+    key=f"temp_chart_{st.session_state['chart_ver']}",
+)
+
+if first is None:
+    st.caption("💡 그래프에서 연도 두 곳을 차례로 클릭하면 시작·끝 연도가 자동으로 지정됩니다.")
+else:
+    st.caption(f"💡 {first}년을 선택했습니다. 그래프에서 다른 연도를 클릭하면 구간이 지정됩니다.")
+    if st.button("첫 번째 선택 취소"):
+        st.session_state["first_click"] = None
+        st.session_state["chart_ver"] += 1
+        st.rerun()
+
+# 그래프 클릭 처리: 첫 클릭은 기준 연도로 저장, 두 번째 클릭에서 구간 확정
+points = event["selection"]["points"] if event else []
+clicked = sorted({int(round(p["x"])) for p in points if p.get("x") is not None})
+if clicked:
+    new_range = None
+    if len(clicked) >= 2:  # Shift+클릭 등으로 한 번에 두 점이 선택된 경우
+        new_range = (clicked[0], clicked[-1])
+    elif first is None:
+        st.session_state["first_click"] = clicked[0]
+    else:
+        new_range = (min(first, clicked[0]), max(first, clicked[0]))
+
+    if new_range:
+        st.session_state["first_click"] = None
+        st.session_state["pending_range"] = new_range
+    st.session_state["chart_ver"] += 1  # 그래프를 새로 만들어 선택 표시를 지움
+    st.rerun()
 
 # ---------------------------------------------------------------- 선택 구간 통계
 sel = df[(df["연도"] >= start) & (df["연도"] <= end)]
