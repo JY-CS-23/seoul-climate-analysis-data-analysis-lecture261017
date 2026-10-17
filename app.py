@@ -86,18 +86,18 @@ def _reset_range():
     st.session_state["chart_ver"] += 1
 
 
-def _start_minus():
-    """Ctrl+←: 시작 연도 -1"""
-    s = max(min_year, st.session_state["start_year"] - 1)
+def _shift_start(delta):
+    """Shift+←/→: 시작 연도 ∓1 (최솟값~끝 연도 사이로 제한)"""
     e = st.session_state["end_year"]
+    s = max(min_year, min(st.session_state["start_year"] + delta, e))
     st.session_state["start_year"] = s
     st.session_state["year_range"] = (s, e)
 
 
-def _end_plus():
-    """Ctrl+→: 끝 연도 +1"""
+def _shift_end(delta):
+    """Ctrl+←/→: 끝 연도 ∓1 (시작 연도~최댓값 사이로 제한)"""
     s = st.session_state["start_year"]
-    e = min(max_year, st.session_state["end_year"] + 1)
+    e = min(max_year, max(st.session_state["end_year"] + delta, s))
     st.session_state["end_year"] = e
     st.session_state["year_range"] = (s, e)
 
@@ -143,10 +143,28 @@ st.sidebar.button(
     "전체 범위로 (Esc)", on_click=_reset_range, use_container_width=True
 )
 st.sidebar.button(
-    "시작 연도 -1 (Ctrl+←)", on_click=_start_minus, use_container_width=True
+    "시작 연도 -1 (Shift+←)",
+    on_click=_shift_start,
+    args=(-1,),
+    use_container_width=True,
 )
 st.sidebar.button(
-    "끝 연도 +1 (Ctrl+→)", on_click=_end_plus, use_container_width=True
+    "시작 연도 +1 (Shift+→)",
+    on_click=_shift_start,
+    args=(1,),
+    use_container_width=True,
+)
+st.sidebar.button(
+    "끝 연도 -1 (Ctrl+←)",
+    on_click=_shift_end,
+    args=(-1,),
+    use_container_width=True,
+)
+st.sidebar.button(
+    "끝 연도 +1 (Ctrl+→)",
+    on_click=_shift_end,
+    args=(1,),
+    use_container_width=True,
 )
 
 year_range = st.session_state["year_range"]
@@ -316,7 +334,7 @@ with st.expander("연도별 데이터 보기"):
     )
 
 # ---------------------------------------------------------------- 키보드 단축키
-# Esc: 전체 범위 / Ctrl+←: 시작 연도 -1 / Ctrl+→: 끝 연도 +1
+# Esc: 전체 범위 / Shift+←,→: 시작 연도 -1,+1 / Ctrl+←,→: 끝 연도 -1,+1
 # 사이드바의 해당 버튼을 대신 눌러주는 방식으로 동작
 components.html(
     """
@@ -338,12 +356,15 @@ components.html(
         if (e.repeat) return;
         if (e.key === "Escape") {
             clickButton("(Esc)");
-        } else if (e.ctrlKey && e.key === "ArrowLeft") {
-            e.preventDefault();
-            clickButton("(Ctrl+←)");
-        } else if (e.ctrlKey && e.key === "ArrowRight") {
-            e.preventDefault();
-            clickButton("(Ctrl+→)");
+        } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+            const arrow = e.key === "ArrowLeft" ? "←" : "→";
+            if (e.shiftKey && !e.ctrlKey) {
+                e.preventDefault();
+                clickButton("(Shift+" + arrow + ")");
+            } else if (e.ctrlKey && !e.shiftKey) {
+                e.preventDefault();
+                clickButton("(Ctrl+" + arrow + ")");
+            }
         }
     };
     doc.addEventListener("keydown", win.__tempKeyHandler);
