@@ -162,19 +162,41 @@ if not outliers.empty:
             hovertemplate="%{x}년: %{y:.2f}℃<extra>결측 구간</extra>",
         )
     )
+# 클릭 감지용 투명 트레이스: 모든 연도에 점을 하나씩 두어서,
+# 결측 구간을 포함해 그래프 어디서든 마우스를 따라다니는 세로선 위를 클릭하면 그 연도가 잡히게 함
+_ymid = view["연평균"].mean()
+fig.add_trace(
+    go.Scatter(
+        x=view["연도"],
+        y=[0 if pd.isna(_ymid) else _ymid] * len(view),
+        mode="markers",
+        marker=dict(size=1, opacity=0),
+        hoverinfo="none",
+        showlegend=False,
+    )
+)
 fig.update_layout(
     xaxis_title="연도",
     yaxis_title="평균기온 (℃)",
+    clickmode="event+select",
+    hoverdistance=-1,  # 마우스에서 가장 가까운 연도를 항상 잡음
     hovermode="x unified",
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     height=520,
     margin=dict(l=20, r=20, t=40, b=20),
 )
 
-# 클릭한 첫 번째 연도를 점선으로 표시
+# 클릭한 첫 번째 연도를 주황색 실선으로 표시 (마우스 오버 시 나타나는 점선과 구분)
 first = st.session_state["first_click"]
 if first is not None and start <= first <= end:
-    fig.add_vline(x=first, line_dash="dash", line_color="gray")
+    fig.add_vline(
+        x=first,
+        line_dash="solid",
+        line_color="#F58518",
+        line_width=2,
+        annotation_text=f"{first}년",
+        annotation_position="top",
+    )
 
 event = st.plotly_chart(
     fig,
@@ -185,9 +207,16 @@ event = st.plotly_chart(
 )
 
 if first is None:
-    st.caption("💡 그래프에서 연도 두 곳을 차례로 클릭하면 시작·끝 연도가 자동으로 지정됩니다.")
+    st.caption(
+        "💡 그래프 위에 마우스를 올리면 해당 연도에 세로 점선이 생깁니다. "
+        "그 점선 위를 클릭해 연도를 고르고, 두 번째 연도도 같은 방법으로 클릭하면 "
+        "시작·끝 연도가 자동으로 지정됩니다."
+    )
 else:
-    st.caption(f"💡 {first}년을 선택했습니다. 그래프에서 다른 연도를 클릭하면 구간이 지정됩니다.")
+    st.caption(
+        f"💡 {first}년(주황색 선)을 선택했습니다. "
+        "다른 연도의 점선 위를 클릭하면 구간이 지정됩니다."
+    )
     if st.button("첫 번째 선택 취소"):
         st.session_state["first_click"] = None
         st.session_state["chart_ver"] += 1
