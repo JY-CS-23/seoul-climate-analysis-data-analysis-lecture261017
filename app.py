@@ -1,6 +1,7 @@
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 
 CSV_PATH = "seoul_temperature.csv"
 EXCLUDE_YEARS = [1907, 2026]          # 일수가 적은 연도
@@ -76,6 +77,31 @@ def _sync_from_inputs():
     st.session_state["year_range"] = (s, e)
 
 
+def _reset_range():
+    """Esc: 가장 큰 범위로 되돌리고 그래프 클릭 선택도 초기화"""
+    st.session_state["year_range"] = (min_year, max_year)
+    st.session_state["start_year"] = min_year
+    st.session_state["end_year"] = max_year
+    st.session_state["first_click"] = None
+    st.session_state["chart_ver"] += 1
+
+
+def _start_minus():
+    """Ctrl+←: 시작 연도 -1"""
+    s = max(min_year, st.session_state["start_year"] - 1)
+    e = st.session_state["end_year"]
+    st.session_state["start_year"] = s
+    st.session_state["year_range"] = (s, e)
+
+
+def _end_plus():
+    """Ctrl+→: 끝 연도 +1"""
+    s = st.session_state["start_year"]
+    e = min(max_year, st.session_state["end_year"] + 1)
+    st.session_state["end_year"] = e
+    st.session_state["year_range"] = (s, e)
+
+
 st.session_state.setdefault("first_click", None)  # 그래프에서 첫 번째로 클릭한 연도
 st.session_state.setdefault("chart_ver", 0)  # 그래프 선택 상태를 초기화하기 위한 key 번호
 
@@ -111,6 +137,18 @@ col_end.number_input(
     key="end_year",
     on_change=_sync_from_inputs,
 )
+
+# 단축키와 연결된 버튼 (버튼을 직접 눌러도 같은 동작)
+st.sidebar.button(
+    "전체 범위로 (Esc)", on_click=_reset_range, use_container_width=True
+)
+st.sidebar.button(
+    "시작 연도 -1 (Ctrl+←)", on_click=_start_minus, use_container_width=True
+)
+st.sidebar.button(
+    "끝 연도 +1 (Ctrl+→)", on_click=_end_plus, use_container_width=True
+)
+
 year_range = st.session_state["year_range"]
 include_missing = st.sidebar.checkbox(
     "결측 구간(1950~1953) 통계에 포함", value=False
@@ -276,3 +314,40 @@ with st.expander("연도별 데이터 보기"):
         use_container_width=True,
         hide_index=True,
     )
+
+# ---------------------------------------------------------------- 키보드 단축키
+# Esc: 전체 범위 / Ctrl+←: 시작 연도 -1 / Ctrl+→: 끝 연도 +1
+# 사이드바의 해당 버튼을 대신 눌러주는 방식으로 동작
+components.html(
+    """
+    <script>
+    const win = window.parent;
+    const doc = win.document;
+    if (win.__tempKeyHandler) {
+        doc.removeEventListener("keydown", win.__tempKeyHandler);
+    }
+    function clickButton(marker) {
+        for (const b of doc.querySelectorAll("button")) {
+            if (b.innerText && b.innerText.includes(marker)) {
+                b.click();
+                return;
+            }
+        }
+    }
+    win.__tempKeyHandler = function (e) {
+        if (e.repeat) return;
+        if (e.key === "Escape") {
+            clickButton("(Esc)");
+        } else if (e.ctrlKey && e.key === "ArrowLeft") {
+            e.preventDefault();
+            clickButton("(Ctrl+←)");
+        } else if (e.ctrlKey && e.key === "ArrowRight") {
+            e.preventDefault();
+            clickButton("(Ctrl+→)");
+        }
+    };
+    doc.addEventListener("keydown", win.__tempKeyHandler);
+    </script>
+    """,
+    height=0,
+)
